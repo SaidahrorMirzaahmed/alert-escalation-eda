@@ -273,6 +273,7 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 const fmt = n => n.toLocaleString('en-US');
 const TYPES = {karta:'Card', bank_otkazmasi:'Bank transfer', naqd:'Cash', xalqaro:'International'};
 const DIRS = {kirim:'In', chiqim:'Out'};
+const DATA_VERSION = '2';  // bump whenever eda.json is regenerated so browsers never pair new code with cached data
 let charts = [];
 const BANDNAME = { kbank_floor: 'in-bank floor', kbank_micro: 'in-bank micro', cbank_floor: 'out-bank floor', cbank_micro: 'out-bank micro',
   kcard_micro: 'in-card micro', ccard_micro: 'out-card micro', kcash_floor: 'in-cash floor' };
@@ -289,7 +290,7 @@ function pretty(f) {
   return pre + parts.join(' · ') + (w ? ` (${w[1]}d)` : '');
 }
 
-fetch('eda.json').then(r => r.json()).then(D => { window.D = D; render(D); });
+fetch('eda.json?v=' + DATA_VERSION, { cache: 'no-cache' }).then(r => r.json()).then(D => { window.D = D; render(D); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => window.D && render(window.D));
 
 function base(extra = {}) {
@@ -374,7 +375,7 @@ function render(D) {
   const hrs = [...Array(24).keys()];
   mk('cHour', { type: 'line', data: { labels: hrs.map(h => h + ':00'), datasets: [line('Dismissed', hrs.map(h => D.hour['0'][h]), s1), line('Escalated', hrs.map(h => D.hour['1'][h]), s2)] }, options: base() });
 
-  if (D.model) {
+  if (D.model && D.model.model_auc) {
     const M = D.model, N = { logreg_l1: 'L1 logistic regression', catboost: 'CatBoost', histgb: 'HistGradientBoosting' };
     document.querySelectorAll('[data-k=lrnz]').forEach(e => e.textContent = M.lr_nonzero);
     document.querySelectorAll('[data-k=nfeat2]').forEach(e => e.textContent = M.n_features);
