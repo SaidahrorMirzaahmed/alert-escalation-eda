@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alert Escalation EDA</title>
+<meta name="description" content="Exploratory data analysis and modeling notes for the alert-escalation prediction challenge.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f6f5f2; --surface-1:#fcfcfb; --border:#e3e1dc; --grid:#ecebe7;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7d7b76;
+  --series-1:#2a78d6; --series-2:#eb6834; --accent:#2a78d6; --code-bg:#f0efec;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#2a2a28;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8f8d86;
+    --series-1:#3987e5; --series-2:#d95926; --accent:#6da7ec; --code-bg:#242422;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#2a2a28;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8f8d86;
+  --series-1:#3987e5; --series-2:#d95926; --accent:#6da7ec; --code-bg:#242422;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text-primary);font:16px/1.6 Inter,system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 80px}
+header{padding:56px 0 24px}
+.kicker{font:500 13px/1 "JetBrains Mono",monospace;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.1;margin:12px 0 14px;letter-spacing:-.02em}
+h2{font-size:24px;margin:56px 0 8px;letter-spacing:-.01em}
+h3{font-size:16px;margin:0 0 4px}
+section{padding-top:56px}
+section > h2{margin-top:8px}
+section .kicker{color:var(--series-2)}
+p{color:var(--text-secondary);max-width:760px}
+.lead{font-size:18px}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+nav a{font-size:13px;color:var(--text-secondary);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:4px 12px;background:var(--surface-1)}
+nav a:hover{color:var(--text-primary)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:20px 0}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px}
+.tile .v{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.tile .l{font-size:13px;color:var(--text-muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:18px;min-width:0}
+.card p.cap{font-size:14px;margin:4px 0 12px}
+.chart{position:relative;height:280px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--text-secondary);margin:0 0 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.insight{border-left:3px solid var(--accent);padding:10px 16px;background:var(--surface-1);border-radius:0 10px 10px 0;margin:16px 0;color:var(--text-secondary);max-width:820px}
+.insight b{color:var(--text-primary)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+th{color:var(--text-muted);font-weight:500}
+td.num,th.num{text-align:right;font-family:"JetBrains Mono",monospace;font-size:13px}
+.tablewrap{overflow-x:auto}
+code{font-family:"JetBrains Mono",monospace;font-size:.88em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+ol li,ul li{color:var(--text-secondary);margin:4px 0;max-width:780px}
+.pipeline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
+.step{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px}
+.arrow{color:var(--text-muted)}
+footer{margin-top:64px;color:var(--text-muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="kicker">WIUT Fintech Hackathon · Team 855BB00D</div>
+  <h1>Twenty thousand alerts, one question: which ones matter?</h1>
+  <p class="lead">Every day a monitoring desk in Tashkent gets automated alerts about customers' transactions. Specialists read each one and either dismiss it or escalate it for investigation. Most are dismissed. We were handed 10 million transactions and asked to learn the difference. This is the story of how we looked, what we found, and the model that came out of it.</p>
+  <p style="font-size:14px;color:var(--text-muted)">By Sayidahror Mirzaakhmedov, Muzaffar Nurillayev and Farrux Chorikulov</p>
+  <nav>
+    <a href="#approach">Approach</a><a href="#data">Dataset</a><a href="#target">Target</a><a href="#time">Activity over time</a>
+    <a href="#flows">In vs out</a><a href="#types">Transaction types</a><a href="#amounts">Amounts</a><a href="#diff">Escalated vs dismissed</a>
+    <a href="#features">Features</a><a href="#model">Model</a><a href="#conclusion">Conclusion</a><a href="#team">Team</a>
+  </nav>
+</header>
+
+<section id="approach">
+  <div class="kicker">Prologue</div>
+  <h2>How we attacked the problem</h2>
+  <p>We started with a simple rule: <b>look before you model</b>. We spent the first hours with nothing but plots and counts, and only then let a model near the data. Each alert (<code>signal_id</code>) comes with the customer's transaction history, and the task is to rank alerts by how likely they are to be escalated. We turn each history into one feature row per alert, then train boosted-tree ensembles with 5-fold stratified cross-validation. Out-of-fold ROC-AUC is the only metric we trust.</p>
+  <div class="pipeline">
+    <div class="step">Raw transactions<br><small>10.0M rows</small></div><span class="arrow">→</span>
+    <div class="step">EDA<br><small>time, flows, amounts</small></div><span class="arrow">→</span>
+    <div class="step">Per-signal features<br><small><span data-k="nfeat">~340</span> aggregates</small></div><span class="arrow">→</span>
+    <div class="step">CatBoost + HistGB<br><small>5-fold × 3 seeds, rank blend</small></div>
+  </div>
+</section>
+
+<section id="data">
+  <div class="kicker">Chapter 1 · The case files</div>
+  <h2>What was on the desk</h2>
+  <p>Think of each alert as a case file: a date, a verdict (for the training cases), and a folder of the customer's past transactions. Some folders are thin, with a single transaction. Others are more than two thousand pages thick.</p>
+  <div class="tiles" id="tiles"></div>
+  <p>There are two relational tables: one row per alert, and many transaction rows per alert. A transaction has a timestamp, a direction (<code>kirim</code> incoming / <code>chiqim</code> outgoing), a type (<code>karta</code> card, <code>bank_otkazmasi</code> bank transfer, <code>naqd</code> cash, <code>xalqaro</code> international), and <code>miqdor_indeksi</code>, a standardized size index. Every alert has at least one transaction, and each history covers up to <b>180 days before the alert date</b>.</p>
+  <div class="card tablewrap"><h3>Sample transactions</h3><table id="sampleTx"></table></div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="card"><h3>Transactions per alert</h3><p class="cap">Density of history length, by outcome. Escalated alerts have slightly longer histories (median 493 vs 455).</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Dismissed</span><span><i style="background:var(--series-2)"></i>Escalated</span></div>
+      <div class="chart"><canvas id="cCount"></canvas></div></div>
+    <div class="card"><h3>Train vs test</h3><p class="cap">Train and test alerts cover the same date range (2025-01 → 2026-12), and per-alert history sizes look alike. The split is random, not by time, so stratified K-fold CV is a faithful proxy for the leaderboard.</p>
+      <div class="tablewrap"><table id="splitTbl"></table></div></div>
+  </div>
+</section>
+
+<section id="target">
+  <div class="kicker">Chapter 2 · The verdicts</div>
+  <h2>How often does a specialist say "escalate"?</h2>
+  <p>About one alert in six is escalated, a moderate class imbalance. Because ROC-AUC only depends on ranking, we don't resample; we just stratify the folds.</p>
+  <div class="grid2">
+    <div class="card"><h3>Escalated vs dismissed</h3><p class="cap">Training alerts by outcome.</p><div class="chart" style="height:220px"><canvas id="cTarget"></canvas></div></div>
+    <div class="card"><h3>Escalation rate by alert month</h3><p class="cap">The rate drifts mildly between about 14% and 21%, with no strong trend. We keep calendar features but expect little lift from them.</p><div class="chart" style="height:220px"><canvas id="cMonth"></canvas></div></div>
+  </div>
+</section>
+
+<section id="time">
+  <div class="kicker">Chapter 3 · Rewinding the clock</div>
+  <h2>What happens in the months before an alert?</h2>
+  <p>Our first instinct was that trouble announces itself: a burst of activity just before the alert. So we lined up every history on its alert date and counted transactions for each day before it. The clock told a different story, plus one we didn't expect at all.</p>
+  <div class="grid2">
+    <div class="card"><h3>Daily transactions per alert, days before the alert</h3><p class="cap">Day 0 excluded (see right). Activity peaks about 4 months before the alert and then declines steadily toward it. Escalated alerts sit about 5% higher throughout, with the widest gap 90–150 days out.</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Dismissed</span><span><i style="background:var(--series-2)"></i>Escalated</span></div>
+      <div class="chart"><canvas id="cDaily"></canvas></div></div>
+    <div class="card"><h3>The pre-alert "pile-up"</h3><p class="cap">Transactions in the final 24h, by seconds before midnight of the alert date. Nearly all of them land in the last 5 minutes.</p><div class="chart"><canvas id="cPile"></canvas></div></div>
+  </div>
+  <div class="insight"><b>The surprise: a crowd at the door.</b> <span data-k="pileShare">7.9%</span> of all transactions (about 39 per alert) are timestamped 0–300 seconds before the alert date, compared with only 1–3 transactions per alert on an ordinary day. Their mix differs from normal history too: mostly small incoming card payments. We treat this "pile" as a separate batch and compute features on it and on the true history <em>separately</em>, so it doesn't blur the behavioral statistics.</div>
+</section>
+
+<section id="flows">
+  <div class="kicker">Chapter 4 · Following the money</div>
+  <h2>Money in, money out</h2>
+  <p>Next we split every folder by direction and channel. About 76% of transactions are incoming. Escalated alerts have slightly <em>more</em> transactions in every direction × type cell, but their outgoing bank transfers are noticeably <em>smaller</em>.</p>
+  <div class="grid2">
+    <div class="card"><h3>Transactions per alert, by direction × type</h3><p class="cap">Average count per alert.</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Dismissed</span><span><i style="background:var(--series-2)"></i>Escalated</span></div>
+      <div class="chart" style="height:320px"><canvas id="cMix"></canvas></div></div>
+    <div class="card"><h3>Mean size index, by direction × type</h3><p class="cap">The largest gap between outcomes is on outgoing bank transfers (0.34 dismissed vs 0.20 escalated).</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Dismissed</span><span><i style="background:var(--series-2)"></i>Escalated</span></div>
+      <div class="chart" style="height:320px"><canvas id="cMixAmt"></canvas></div></div>
+  </div>
+</section>
+
+<section id="types">
+  <div class="kicker">Chapter 5 · Every channel has its own scale</div>
+  <h2>A big card payment is a small wire</h2>
+  <p>Transaction type is the strongest driver of size: card &lt; bank transfer &lt; cash &lt; international. So a "large" amount has to be judged against its own type, which is why we build amount statistics <em>per direction × type cell</em> and not only globally.</p>
+  <div class="card"><h3>Size-index distribution by transaction type</h3><p class="cap">Density of <code>miqdor_indeksi</code>. International transfers are about 2 standard deviations larger than card payments.</p>
+    <div class="legend" id="typeLegend"></div>
+    <div class="chart"><canvas id="cType"></canvas></div></div>
+</section>
+
+<section id="amounts">
+  <div class="kicker">Chapter 6 · Size matters, backwards</div>
+  <h2>We expected big transactions. We found small ones.</h2>
+  <p>The textbook suspicious customer moves large sums. So we put the size distributions of escalated and dismissed alerts side by side, and the picture flipped.</p>
+  <div class="grid2">
+    <div class="card"><h3>Size index, escalated vs dismissed</h3><p class="cap">Density over all transactions.</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Dismissed</span><span><i style="background:var(--series-2)"></i>Escalated</span></div>
+      <div class="chart"><canvas id="cAmt"></canvas></div></div>
+    <div class="card"><h3>Relative over-representation of escalated</h3><p class="cap">Share of escalated ÷ share of dismissed, per size bin. Above 1 means escalated alerts have more transactions of that size.</p><div class="chart"><canvas id="cAmtRatio"></canvas></div></div>
+  </div>
+  <div class="insight"><b>The twist: escalated customers go small.</b> Escalated alerts are over-represented at small sizes (up to +20%) and under-represented at large ones (down to −40%). That fits a structuring pattern: splitting money into many small transfers, not a few large ones.</div>
+</section>
+
+<section id="diff">
+  <div class="kicker">Chapter 7 · Line-up</div>
+  <h2>Putting escalated and dismissed side by side</h2>
+  <p>We then asked each simple statistic, on its own, to pick out the escalated cases. The scores below are single-feature ROC-AUC for simple per-alert statistics (0.5 means no signal; values below 0.5 mean <em>lower</em> values go with escalation).</p>
+  <div class="grid2">
+    <div class="card tablewrap"><h3>Simple per-alert statistics</h3><table id="cmpTbl"></table></div>
+    <div class="card"><h3>Escalation rate by decile of outgoing-transfer size</h3><p class="cap">Alerts sorted by their mean outgoing bank-transfer size index. The rate falls from 23% to 11%.</p><div class="chart"><canvas id="cLift"></canvas></div></div>
+  </div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="card"><h3>Hour of day (excluding pile)</h3><p class="cap">Transactions per alert, by hour. The profile is flat, with no night-time effect, so timing features contribute little.</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Dismissed</span><span><i style="background:var(--series-2)"></i>Escalated</span></div>
+      <div class="chart"><canvas id="cHour"></canvas></div></div>
+    <div class="card"><h3>What the line-up taught us</h3><p class="cap" style="font-size:15px">No single statistic separates the classes well: the best reaches AUC ≈ 0.57. The signal is spread across many weak cues (amount level per type, volume, pile composition, sequences), which is the setting where gradient boosting over many aggregates works best.</p></div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="kicker">Chapter 8 · From clues to features</div>
+  <h2>Turning what we saw into features</h2>
+  <p>Every chapter above left us a clue, and every clue became a family of features:</p>
+  <ol>
+    <li><b>Direction × type grid</b>: count, mean, max and volume (Σ e<sup>index</sup>) for each of the 8 cells, because size depends on type and the outgoing-transfer gap is the strongest raw cue.</li>
+    <li><b>Pile vs history split</b>: the same statistics computed separately on the pre-alert batch and on the true history, plus the differences between them.</li>
+    <li><b>Recency windows</b> (1, 3, 7, 14, 30, 60, 90, 180 days): counts, volumes, in/out ratios, and each window's rate relative to the 180-day baseline, to capture build-up before the alert.</li>
+    <li><b>Distribution shape</b>: quantiles, skew, kurtosis, and the share of very small or very large amounts, reflecting the small-amount over-representation.</li>
+    <li><b>Sequence and pass-through</b>: gaps between transactions, bursts (max per day), incoming-then-outgoing within 2h/24h with matching amounts, and repeated amounts.</li>
+    <li><b>An idea that didn't make it</b>: we also trained a model on individual transactions (each one inheriting its alert's verdict, out-of-fold by alert) and summarized the scores per alert. It took 35 minutes and reached only AUC ≈ 0.53 per alert, and an ablation showed it didn't improve the ensemble (0.6285 with it vs 0.6300 without). We dropped it. Keeping the pipeline simple was worth more than a feature that didn't move the number.</li>
+  </ol>
+</section>
+
+<section id="model">
+  <div class="kicker">Chapter 9 · The verdict machine</div>
+  <h2>Model &amp; validation</h2>
+  <p>5-fold stratified CV, repeated over 3 seeds. To keep the estimate honest, CatBoost trains for a fixed number of rounds and never early-stops on the fold it is scored on. CatBoost (depth 5, strong L2, 30% feature subsampling) and sklearn HistGradientBoosting are blended on ranks, with the blend weight chosen on out-of-fold predictions.</p>
+  <div class="tiles" id="modelTiles"></div>
+  <div class="card"><h3>Top features (CatBoost importance)</h3><p class="cap">Amount statistics per direction × type dominate, in line with the EDA.</p><div class="chart" style="height:420px"><canvas id="cImp"></canvas></div></div>
+</section>
+
+<section id="conclusion">
+  <div class="kicker">Epilogue</div>
+  <h2>What we'd tell the monitoring desk</h2>
+  <ul>
+    <li>Escalation is a <b>weak, spread-out signal</b>: no single statistic goes beyond AUC ≈ 0.57, and the full model reaches about <span data-k="aucText">0.63</span> out-of-fold.</li>
+    <li>The clearest behavioral cue is <b>size relative to transaction type</b>. Escalated customers move money in smaller pieces, especially outgoing bank transfers, while doing slightly more transactions overall.</li>
+    <li>The data has a <b>pre-alert batch</b> of transactions stamped in the final minutes before the alert date. Separating it from the real history makes the features cleaner.</li>
+    <li>Time of day, weekday and calendar month are essentially uninformative. Train and test come from the same distribution, so CV is reliable.</li>
+  </ul>
+  <footer style="margin-top:24px">Data are synthetic and were provided by the hackathon organizers. Charts are built from pre-computed aggregates (<code>eda.json</code>) generated by the team's reproducible notebook.</footer>
+</section>
+
+<section id="team">
+  <div class="kicker">The investigators</div>
+  <h2>Team 855BB00D</h2>
+  <div class="tiles">
+    <div class="tile"><div class="v" style="font-size:20px">Sayidahror Mirzaakhmedov</div><div class="l">Team captain</div></div>
+    <div class="tile"><div class="v" style="font-size:20px">Muzaffar Nurillayev</div><div class="l">Team member</div></div>
+    <div class="tile"><div class="v" style="font-size:20px">Farrux Chorikulov</div><div class="l">Team member</div></div>
+  </div>
+  <p>Westminster International University in Tashkent (WIUT).</p>
+</section>
+</div>
+
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = n => n.toLocaleString('en-US');
+const TYPES = {karta:'Card', bank_otkazmasi:'Bank transfer', naqd:'Cash', xalqaro:'International'};
+const DIRS = {kirim:'In', chiqim:'Out'};
+let charts = [];
+
+fetch('eda.json').then(r => r.json()).then(D => { window.D = D; render(D); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => window.D && render(window.D));
+
+function base(extra = {}) {
+  const grid = css('--grid'), txt = css('--text-muted');
+  return Object.assign({
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: css('--surface-1'), titleColor: css('--text-primary'),
+      bodyColor: css('--text-secondary'), borderColor: css('--border'), borderWidth: 1, padding: 10 } },
+    scales: { x: { grid: { display: false }, ticks: { color: txt, maxRotation: 0, autoSkipPadding: 12 }, border: { color: grid } },
+              y: { grid: { color: grid }, ticks: { color: txt }, border: { display: false } } }
+  }, extra);
+}
+function mk(id, cfg) { charts.push(new Chart(document.getElementById(id), cfg)); }
+function line(label, data, color) { return { label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: .25 }; }
+function bar(label, data, color) { return { label, data, backgroundColor: color, borderRadius: 4, borderSkipped: 'start', maxBarThickness: 28, categoryPercentage: .8, barPercentage: .9 }; }
+
+function render(D) {
+  charts.forEach(c => c.destroy()); charts = [];
+  const s1 = css('--series-1'), s2 = css('--series-2');
+  const O = D.overview;
+  document.querySelectorAll('[data-k=pileShare]').forEach(e => e.textContent = (D.pile_share * 100).toFixed(1) + '%');
+  if (D.model) {
+    document.querySelectorAll('[data-k=aucText]').forEach(e => e.textContent = D.model.ensemble_auc.toFixed(3));
+    document.querySelectorAll('[data-k=nfeat]').forEach(e => e.textContent = D.model.n_features);
+  }
+  document.getElementById('tiles').innerHTML = [
+    [fmt(O.train_signals), 'training alerts'], [fmt(O.test_signals), 'test alerts'],
+    [(O.train_tx / 1e6).toFixed(2) + 'M', 'train transactions'], [(O.test_tx / 1e6).toFixed(2) + 'M', 'test transactions'],
+    [(O.pos_rate * 100).toFixed(1) + '%', 'escalation rate'], ['180 d', 'history window'],
+  ].map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+
+  const st = D.sample_tx;
+  document.getElementById('sampleTx').innerHTML = '<tr>' + Object.keys(st[0]).map(k => `<th>${k}</th>`).join('') + '</tr>' +
+    st.map(r => '<tr>' + Object.values(r).map(v => `<td>${String(v).replace(/\.0+$/, '')}</td>`).join('') + '</tr>').join('');
+  document.getElementById('splitTbl').innerHTML = `<tr><th></th><th class="num">Train</th><th class="num">Test</th></tr>
+    <tr><td>Alerts</td><td class="num">${fmt(O.train_signals)}</td><td class="num">${fmt(O.test_signals)}</td></tr>
+    <tr><td>Transactions</td><td class="num">${fmt(O.train_tx)}</td><td class="num">${fmt(O.test_tx)}</td></tr>
+    <tr><td>Tx per alert</td><td class="num">${(O.train_tx / O.train_signals).toFixed(0)}</td><td class="num">${(O.test_tx / O.test_signals).toFixed(0)}</td></tr>
+    <tr><td>Alert dates</td><td class="num">${O.date_min} → ${O.date_max}</td><td class="num">same</td></tr>
+    <tr><td>Label</td><td class="num">eskalatsiya</td><td class="num">hidden</td></tr>`;
+
+  const cb = D.txcount_bins.slice(0, -1);
+  mk('cCount', { type: 'line', data: { labels: cb, datasets: [line('Dismissed', D.txcount_hist['0'].map(v => v * 100), s1), line('Escalated', D.txcount_hist['1'].map(v => v * 100), s2)] },
+    options: base({ scales: { ...base().scales, x: { ...base().scales.x, title: { display: true, text: 'transactions per alert', color: css('--text-muted') } } } }) });
+
+  mk('cTarget', { type: 'bar', data: { labels: ['Dismissed (0)', 'Escalated (1)'], datasets: [{ data: [O.nneg, O.npos], backgroundColor: [s1, s2], borderRadius: 4, maxBarThickness: 64 }] },
+    options: base({ indexAxis: 'y', interaction: { mode: 'nearest', intersect: true } }) });
+  mk('cMonth', { type: 'line', data: { labels: D.target_by_month.map(r => r.mo), datasets: [line('Escalation rate', D.target_by_month.map(r => +(r.rate * 100).toFixed(1)), s2)] },
+    options: base({ scales: { ...base().scales, y: { ...base().scales.y, ticks: { color: css('--text-muted'), callback: v => v + '%' } } } }) });
+
+  const days = [...Array(179).keys()].map(i => i + 1);
+  mk('cDaily', { type: 'line', data: { labels: days.map(d => '−' + d), datasets: [line('Dismissed', days.map(d => D.daily['0'][d] || 0), s1), line('Escalated', days.map(d => D.daily['1'][d] || 0), s2)] },
+    options: base({ scales: { ...base().scales, x: { ...base().scales.x, reverse: true, ticks: { color: css('--text-muted'), maxTicksLimit: 8 }, title: { display: true, text: 'days before alert', color: css('--text-muted') } } } }) });
+  const pe = D.pile_hist.edges, pl = pe.slice(0, -1).map((e, i) => `${lab(e)}–${lab(pe[i + 1])}`);
+  function lab(s) { return s >= 3600 ? s / 3600 + 'h' : s >= 60 ? s / 60 + 'm' : s + 's'; }
+  mk('cPile', { type: 'bar', data: { labels: pl, datasets: [bar('Transactions', D.pile_hist.counts, s1)] }, options: base() });
+
+  const cells = [...new Set(D.mix.map(r => r.kirim_chiqim + '|' + r.tranzaksiya_turi))];
+  const cl = cells.map(c => { const [d, t] = c.split('|'); return DIRS[d] + ' · ' + TYPES[t]; });
+  const g = (c, y, k) => { const [d, t] = c.split('|'); return D.mix.find(r => r.kirim_chiqim == d && r.tranzaksiya_turi == t && r.y == y)[k]; };
+  mk('cMix', { type: 'bar', data: { labels: cl, datasets: [bar('Dismissed', cells.map(c => g(c, 0, 'per_sig')), s1), bar('Escalated', cells.map(c => g(c, 1, 'per_sig')), s2)] }, options: base({ indexAxis: 'y' }) });
+  mk('cMixAmt', { type: 'bar', data: { labels: cl, datasets: [bar('Dismissed', cells.map(c => g(c, 0, 'amean')), s1), bar('Escalated', cells.map(c => g(c, 1, 'amean')), s2)] }, options: base({ indexAxis: 'y' }) });
+
+  const ae = D.amt_edges.slice(0, -1).map(v => v.toFixed(2));
+  const tcol = [css('--series-1'), css('--series-2'), '#1baf7a', '#e87ba4'];
+  const tkeys = Object.keys(D.amt_by_type);
+  document.getElementById('typeLegend').innerHTML = tkeys.map((k, i) => `<span><i style="background:${tcol[i]}"></i>${TYPES[k]}</span>`).join('');
+  mk('cType', { type: 'line', data: { labels: ae, datasets: tkeys.map((k, i) => line(TYPES[k], D.amt_by_type[k], tcol[i])) }, options: base({ scales: { ...base().scales, x: { ...base().scales.x, ticks: { color: css('--text-muted'), maxTicksLimit: 11 } } } }) });
+  mk('cAmt', { type: 'line', data: { labels: ae, datasets: [line('Dismissed', D.amt_hist['0'], s1), line('Escalated', D.amt_hist['1'], s2)] }, options: base({ scales: { ...base().scales, x: { ...base().scales.x, ticks: { color: css('--text-muted'), maxTicksLimit: 11 } } } }) });
+  const ratio = D.amt_hist['1'].map((v, i) => D.amt_hist['0'][i] > 0.002 ? +(v / D.amt_hist['0'][i]).toFixed(3) : null);
+  mk('cAmtRatio', { type: 'bar', data: { labels: ae, datasets: [{ label: 'Ratio', data: ratio.map(r => r == null ? null : r - 1), base: 0,
+    backgroundColor: ratio.map(r => r > 1 ? s2 : s1), borderRadius: 3 }] },
+    options: base({ plugins: { ...base().plugins, tooltip: { ...base().plugins.tooltip, callbacks: { label: c => 'ratio ' + (c.raw + 1).toFixed(2) } } },
+      scales: { ...base().scales, x: { ...base().scales.x, ticks: { color: css('--text-muted'), maxTicksLimit: 11 } }, y: { ...base().scales.y, ticks: { color: css('--text-muted'), callback: v => (v + 1).toFixed(1) + '×' } } } }) });
+
+  const names = { n_tx: 'Transactions per alert', mean_amt: 'Mean size index', max_amt: 'Max size index', out_share: 'Share outgoing', cash_share: 'Share cash', out_transfer_amt: 'Mean outgoing bank-transfer size', n_last30: 'Transactions, last 30 days' };
+  document.getElementById('cmpTbl').innerHTML = '<tr><th>Statistic</th><th class="num">Median · dismissed</th><th class="num">Median · escalated</th><th class="num">AUC</th></tr>' +
+    D.signal_cmp.map(r => `<tr><td>${names[r.feat]}</td><td class="num">${r.med0}</td><td class="num">${r.med1}</td><td class="num">${r.auc.toFixed(3)}</td></tr>`).join('');
+  mk('cLift', { type: 'bar', data: { labels: D.lift_out_transfer.map((_, i) => 'D' + (i + 1)), datasets: [bar('Escalation rate', D.lift_out_transfer.map(v => +(v * 100).toFixed(1)), s2)] },
+    options: base({ scales: { ...base().scales, y: { ...base().scales.y, ticks: { color: css('--text-muted'), callback: v => v + '%' } } } }) });
+  const hrs = [...Array(24).keys()];
+  mk('cHour', { type: 'line', data: { labels: hrs.map(h => h + ':00'), datasets: [line('Dismissed', hrs.map(h => D.hour['0'][h]), s1), line('Escalated', hrs.map(h => D.hour['1'][h]), s2)] }, options: base() });
+
+  if (D.model) {
+    const M = D.model;
+    document.getElementById('modelTiles').innerHTML = [
+      [M.ensemble_auc.toFixed(4), 'ensemble OOF AUC'], [M.cb_auc.toFixed(4), 'CatBoost OOF AUC'], [M.hgb_auc.toFixed(4), 'HistGB OOF AUC'], [M.n_features, 'features'],
+    ].map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+    mk('cImp', { type: 'bar', data: { labels: M.importance.map(r => r[0]), datasets: [bar('Importance', M.importance.map(r => r[1]), s1)] }, options: base({ indexAxis: 'y' }) });
+  }
+}
+</script>
+</body>
+</html>
